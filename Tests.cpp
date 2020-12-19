@@ -5,8 +5,20 @@
 #include <gtest/gtest.h>
 #include "Tests.h"
 
-TEST_F(TestNKA, testAdd) {
-    testAdd();
+TEST_F(TestNKA, testBuilderMakeDefault) {
+    testBuilderMakeDefault();
+}
+
+TEST_F(TestNKA, testBuilderMake) {
+    testBuilderMake();
+}
+
+TEST_F(TestNKA, testBuilderAdds) {
+    testBuilderAdds();
+}
+
+TEST_F(TestNKA, testAddTransitions) {
+    testAddTransitions();
 }
 
 TEST_F(TestNKA, testReplaceMultiSymbolEdges) {
@@ -14,7 +26,9 @@ TEST_F(TestNKA, testReplaceMultiSymbolEdges) {
 }
 
 TEST_F(TestNKA, testEpsilonOperations) {
-    testEpsilonOperations();
+    testFindAllWaysOnEpsEdges();
+    testRemoveEpsilonTransitions();
+    testChangeEpsTransitions();
 }
 
 TEST_F(TestNKA, testDelUselessConfigurations) {
@@ -34,7 +48,8 @@ TEST_F(TestNKA, testCheckSetConfigsOnAccepting) {
 }
 
 TEST_F(TestNKA, testCheckNumberOfConfigurations) {
-    testCheckNumberOfConfigurations();
+    testCheckNumberOfConfigurationsNoThrow();
+    testCheckNumberOfConfigurationsThrow();
 }
 
 TEST_F(TestNKA, testFindAllTransitionsFromSetConfigurations) {

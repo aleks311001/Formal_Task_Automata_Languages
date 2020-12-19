@@ -6,77 +6,18 @@
 #define FORMALPRACTICE1__TESTS_H_
 
 #include <gtest/gtest.h>
-#include "NKA.h"
+#include "Builder.h"
 #include "task14.h"
-
-std::string listPairsToString(const std::list<std::pair<std::string, long long>>& container) {
-    std::string result = "[";
-    for (auto& item: container) {
-        result += "(" + item.first + ", " + std::to_string(item.second) + "),  ";
-    }
-    result += "]";
-
-    return result;
-}
-
-testing::AssertionResult equalListsPair(const std::list<std::pair<std::string, long long>>& left,
-                                        const std::list<std::pair<std::string, long long>>& right) {
-    if (left.size() != right.size()) {
-        return testing::AssertionFailure() << listPairsToString(left) << " not equal " << listPairsToString(right);
-    }
-
-    for (auto& left_item: left) {
-        bool found = false;
-        for (auto& right_item: right) {
-            if (right_item.first == left_item.first && right_item.second == left_item.second) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            return testing::AssertionFailure() << listPairsToString(left) << " not equal " << listPairsToString(right);
-        }
-    }
-
-    return testing::AssertionSuccess() << listPairsToString(left) << " equal " << listPairsToString(right);
-}
-
-std::string setToString(const std::set<long long>& set) {
-    std::string result = "{";
-    for (auto& item: set) {
-        result += std::to_string(item) + ", ";
-    }
-    result += "}";
-
-    return result;
-}
-testing::AssertionResult equalSets(const std::set<long long>& left, const std::set<long long>& right) {
-    if (left.size() != right.size()) {
-        return testing::AssertionFailure() << setToString(left) << " not equal " << setToString(right);
-    }
-
-    for (auto& itemLeft: left) {
-        bool found = false;
-        for (auto& itemRight: right) {
-            if (itemLeft == itemRight) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            return testing::AssertionFailure() << setToString(left) << " not equal " << setToString(right);
-        }
-    }
-
-    return testing::AssertionSuccess() << setToString(left) << " equal " << setToString(right);
-}
+#include "TestUtils.h"
 
 class TestNKA: public ::testing::Test {
 protected:
-    NKA nka;
+    BuilderNKA builderNKA;
 
     testing::AssertionResult inTransition(long long left, const std::string& word, long long right) {
         std::string transit = "((" + std::to_string(left) + ", " + word + ") -> " + std::to_string(right) + ")";
+
+        NKA& nka = builderNKA.getNKA();
 
         if (nka.transitions_.contains(left) &&
             nka.transitions_[left].contains(word) &&
@@ -86,52 +27,91 @@ protected:
         return testing::AssertionFailure() << transit << " not in transitions";
     }
 
-    void testAdd() {
-        nka = NKA(1, {'a', 'b', 'c'}, 3, {0, 2});
-        ASSERT_TRUE(nka.q0_ == 1);
-        ASSERT_TRUE(nka.configurations_.contains(2));
+    void testBuilderMakeDefault() {
+        builderNKA.makeDefaultNKA();
+        NKA& nka = builderNKA.getNKA();
 
-        ASSERT_FALSE(nka.configurations_.contains(5));
-        nka.addConfiguration(5);
-        ASSERT_TRUE(nka.configurations_.contains(5));
-        ASSERT_THROW(nka.addConfiguration(5), std::invalid_argument);
-
-
+        EXPECT_TRUE(equalSets(nka.alphabet_, {'a', 'b', 'c'}));
+        EXPECT_TRUE(equalSets(nka.configurations_, {0}));
+        ASSERT_EQ(nka.q0_, 0);
+        EXPECT_TRUE(equalSets(nka.acceptingConfigurations_, {}));
         ASSERT_TRUE(nka.transitions_.empty());
-        nka.addTransition(1, "ab", 2);
-        nka.addTransition(1, 'c', 0);
-        EXPECT_TRUE(inTransition(1, "c", 0));
-        EXPECT_TRUE(inTransition(1, "ab", 2));
+    }
 
-        ASSERT_THROW(nka.addTransition(4, "ab", 5), std::invalid_argument);
-        ASSERT_FALSE(nka.transitions_.contains(4));
-        ASSERT_THROW(nka.addTransition(2, 'a', 7), std::invalid_argument);
-        ASSERT_FALSE(nka.transitions_.contains(2));
-        ASSERT_THROW(nka.addTransition(5, "adc", 0), std::invalid_argument);
+    void testBuilderMake() {
+        NKA& nka = builderNKA.getNKA();
 
-        nka.addTransition(1, "ab", 0);
-        ASSERT_FALSE(nka.transitions_.contains(0));
-        ASSERT_FALSE(nka.transitions_[1].contains("b"));
-        nka.addTransition(0, EPS, 5);
-        EXPECT_TRUE(inTransition(1, "ab", 0));
-        EXPECT_TRUE(inTransition(0, EPS, 5));
-        EXPECT_FALSE(inTransition(0, "b", 5));
+        ASSERT_THROW(builderNKA.makeNKA(27, 100), std::range_error);
 
+        builderNKA.makeNKA(5, 4);
 
-        ASSERT_FALSE(nka.acceptingConfigurations_.contains(1));
-        nka.addAcceptingConfiguration(1);
-        ASSERT_TRUE(nka.acceptingConfigurations_.contains(1));
-        ASSERT_THROW(nka.addAcceptingConfiguration(0), std::invalid_argument);
+        EXPECT_TRUE(equalSets(nka.alphabet_, {'a', 'b', 'c', 'd', 'e'}));
+        EXPECT_TRUE(equalSets(nka.configurations_, {0, 1, 2, 3}));
+        ASSERT_EQ(nka.q0_, 0);
+        EXPECT_TRUE(nka.acceptingConfigurations_.empty());
+        ASSERT_TRUE(nka.transitions_.empty());
+    }
 
-        long long conf = nka.addNewConfiguration(6);
+    void testBuilderAdds() {
+        NKA& nka = builderNKA.getNKA();
+
+        builderNKA.addConfigurations({2, 3, 4})
+                  .addAlphabet({'a', 'b', 'd'})
+                  .setQ0(2)
+                  .addAcceptingConfigurations({4, 3});
+        EXPECT_TRUE(equalSets(nka.alphabet_, {'a', 'b', 'd'}));
+        EXPECT_TRUE(equalSets(nka.configurations_, {2, 3, 4}));
+        ASSERT_EQ(nka.q0_, 2);
+        EXPECT_TRUE(equalSets(nka.acceptingConfigurations_, {4, 3}));
+        ASSERT_TRUE(nka.transitions_.empty());
+
+        builderNKA.addConfigurations({0, 1, 3})
+                  .addAlphabet({'c', 'd'})
+                  .addAcceptingConfigurations({1})
+                  .setQ0(0);
+        EXPECT_TRUE(equalSets(nka.alphabet_, {'a', 'b', 'c', 'd'}));
+        EXPECT_TRUE(equalSets(nka.configurations_, {0, 1, 2, 3, 4}));
+        ASSERT_EQ(nka.q0_, 0);
+        EXPECT_TRUE(equalSets(nka.acceptingConfigurations_, {1, 3, 4}));
+        ASSERT_TRUE(nka.transitions_.empty());
+
+        long long conf = nka.addNewConfiguration_(6);
         ASSERT_TRUE(nka.configurations_.contains(conf));
         ASSERT_GE(conf, 6);
     }
 
-    void testReplaceMultiSymbolEdges() {
-        nka = NKA(0, {'a', 'b', 'c'}, {0, 2, 3}, {1});
+    void testAddTransitions() {
+        builderNKA.makeNKA(3, 5);
+        NKA& nka = builderNKA.getNKA();
 
-        nka.addTransition(0, "abca", 2);
+        ASSERT_TRUE(nka.transitions_.empty());
+        builderNKA.addTransition(1, "ab", 2)
+                  .addTransition(1, 'c', 0);
+        EXPECT_TRUE(inTransition(1, "c", 0));
+        EXPECT_TRUE(inTransition(1, "ab", 2));
+
+        ASSERT_THROW(builderNKA.addTransition(4, "ab", 5), std::invalid_argument);
+        ASSERT_FALSE(nka.transitions_.contains(4));
+        ASSERT_THROW(builderNKA.addTransition(2, 'a', 7), std::invalid_argument);
+        ASSERT_FALSE(nka.transitions_.contains(2));
+
+        nka.addTransition_(1, "ab", 0);
+        ASSERT_FALSE(nka.transitions_.contains(0));
+        ASSERT_FALSE(nka.transitions_[1].contains("b"));
+        builderNKA.addConfigurations({5});
+        nka.addTransition_(0, EPS, 5);
+        EXPECT_TRUE(inTransition(1, "ab", 0));
+        EXPECT_TRUE(inTransition(0, EPS, 5));
+        EXPECT_FALSE(inTransition(0, "b", 5));
+    }
+
+    void testReplaceMultiSymbolEdges() {
+        builderNKA.makeDefaultNKA()
+                  .addConfigurations({2, 3})
+                  .addAcceptingConfigurations({1});
+        NKA& nka = builderNKA.getNKA();
+
+        builderNKA.addTransition(0, "abca", 2);
         nka.replaceMultiSymbolsEdges();
 
         EXPECT_TRUE(inTransition(0, "a", 1));
@@ -141,33 +121,49 @@ protected:
         EXPECT_EQ(nka.transitions_.size(), 4);
     }
 
-    void testEpsilonOperations() {
-        nka = NKA(0, {'a', 'b', 'c'}, 6, {3});
-        nka.addTransition(1, EPS, 2);
-        nka.addTransition(2, EPS, 3);
+    void testFindAllWaysOnEpsEdges() {
+        builderNKA.makeNKA(3, 6).addAcceptingConfigurations({3});
+        NKA& nka = builderNKA.getNKA();
+
+        builderNKA.addTransition(1, EPS, 2);
+        builderNKA.addTransition(2, EPS, 3);
 
         std::set<long long> wasIn;
-        std::list<std::pair<std::string, long long>> endWayConfigurations;
+        std::list<NKA::Edge> endWayConfigurations;
         bool hasAcceptingConf = false;
 
         nka.findAllWaysOnEpsEdges_(0, wasIn, endWayConfigurations, hasAcceptingConf);
         ASSERT_TRUE(endWayConfigurations.empty());
         ASSERT_FALSE(hasAcceptingConf);
 
-        nka.addTransition(2, EPS, 4);
-        nka.addTransition(3, EPS, 4);
-        nka.addTransition(2, "a", 0);
-        nka.addTransition(4, "c", 5);
-        nka.addTransition(0, EPS, 1);
-        nka.addTransition(4, "b", 3);
-
-        NKA nka2 = nka;
+        builderNKA.addTransition(2, EPS, 4)
+                  .addTransition(3, EPS, 4)
+                  .addTransition(2, "a", 0)
+                  .addTransition(4, "c", 5)
+                  .addTransition(0, EPS, 1)
+                  .addTransition(4, "b", 3);
 
         wasIn.clear();
         nka.findAllWaysOnEpsEdges_(0, wasIn, endWayConfigurations, hasAcceptingConf);
         ASSERT_TRUE(hasAcceptingConf);
-        std::list<std::pair<std::string, long long>> rightEndWayConf = {{"a", 0}, {"c", 5}, {"b", 3}};
+        std::list<NKA::Edge> rightEndWayConf = {{"a", 0}, {"c", 5}, {"b", 3}};
         EXPECT_TRUE(equalListsPair(endWayConfigurations, rightEndWayConf));
+    }
+
+    void testRemoveEpsilonTransitions() {
+        builderNKA.makeNKA(3, 6).addAcceptingConfigurations({3});
+
+        builderNKA.addTransition(1, EPS, 2)
+                  .addTransition(2, EPS, 3)
+                  .addTransition(2, EPS, 4)
+                  .addTransition(3, EPS, 4)
+                  .addTransition(2, "a", 0)
+                  .addTransition(4, "c", 5)
+                  .addTransition(0, EPS, 1)
+                  .addTransition(4, "b", 3);
+
+        NKA& nka = builderNKA.getNKA();
+        std::set<long long> wasIn;
 
         wasIn.clear();
         nka.addTransitionsInEpsWays_(0, wasIn);
@@ -182,8 +178,22 @@ protected:
         EXPECT_FALSE(inTransition(3, EPS, 4));
         EXPECT_FALSE(inTransition(1, EPS, 2));
         EXPECT_FALSE(inTransition(2, EPS, 3));
+    }
 
-        nka = nka2;
+    void testChangeEpsTransitions() {
+        builderNKA.makeNKA(3, 6)
+                  .addAcceptingConfigurations({3})
+                  .addTransition(1, EPS, 2)
+                  .addTransition(2, EPS, 3)
+                  .addTransition(2, EPS, 4)
+                  .addTransition(3, EPS, 4)
+                  .addTransition(2, "a", 0)
+                  .addTransition(4, "c", 5)
+                  .addTransition(0, EPS, 1)
+                  .addTransition(4, "b", 3);
+
+        NKA& nka = builderNKA.getNKA();
+
         nka.changeEpsTransitions();
         EXPECT_TRUE(inTransition(0, "a", 0));
         EXPECT_TRUE(inTransition(0, "c", 5));
@@ -197,15 +207,17 @@ protected:
     }
 
     void testDelUselessConfigurations() {
-        nka = NKA(0, {'a', 'b', 'c'}, 8, {1, 3, 6, 7});
-        nka.addTransition(0, "a", 1);
-        nka.addTransition(0, EPS, 2);
-        nka.addTransition(2, "ab", 5);
-        nka.addTransition(2, "ccc", 6);
-        nka.addTransition(3, "a", 7);
-        nka.addTransition(7, "b", 4);
-        nka.addTransition(7, "a", 0);
-        nka.addTransition(5, "a", 0);
+        builderNKA.makeNKA(3, 8).addAcceptingConfigurations({1, 3, 6, 7});
+        NKA& nka = builderNKA.getNKA();
+
+        builderNKA.addTransition(0, "a", 1)
+                  .addTransition(0, EPS, 2)
+                  .addTransition(2, "ab", 5)
+                  .addTransition(2, "ccc", 6)
+                  .addTransition(3, "a", 7)
+                  .addTransition(7, "b", 4)
+                  .addTransition(7, "a", 0)
+                  .addTransition(5, "a", 0);
 
         auto usefulConfs = nka.getSetUsefulConfigurations_();
         ASSERT_EQ(usefulConfs.size(), 5);
@@ -225,9 +237,14 @@ protected:
     }
 
     void testGetMapConfigurationToNumber() {
-        nka = NKA(3, {'a', 'b', 'c'}, {1, 5, 3, 7}, {1, 3});
-        nka.addTransition(3, "a", 5);
-        nka.addTransition(1, "bc", 5);
+        builderNKA.addAlphabet({'a', 'b', 'c'})
+                  .addConfigurations({1, 3, 5, 7})
+                  .addAcceptingConfigurations({1, 3})
+                  .setQ0(3);
+        NKA& nka = builderNKA.getNKA();
+
+        builderNKA.addTransition(3, "a", 5)
+                  .addTransition(1, "bc", 5);
 
         auto map = nka.getMapConfigurationToNumber_();
         ASSERT_EQ(map.size(), 4);
@@ -236,6 +253,7 @@ protected:
             ASSERT_LT(pair.second, map.size());
         }
     }
+
     void testMakeConfigurationFromOthers() {
         std::unordered_map<long long, size_t> indexes;
         indexes.emplace(1, 2);
@@ -252,8 +270,14 @@ protected:
         conf = NKA::makeConfigurationFromOthers_({5, 4, 3, 2, 1}, indexes);
         ASSERT_EQ(conf, 0b1011110);
     }
+
     void testCheckSetConfigsOnAccepting() {
-        nka = NKA(3, {'a', 'b', 'c'}, {1, 5, 3, 7}, {1, 3});
+        builderNKA.addAlphabet({'a', 'b', 'c'})
+                  .addConfigurations({1, 3, 5, 7})
+                  .setQ0(3)
+                  .addAcceptingConfigurations({1, 3});
+        NKA& nka = builderNKA.getNKA();
+
         ASSERT_TRUE(nka.checkSetConfigsOnAccepting_({1, 2, 0, 6}));
         ASSERT_TRUE(nka.checkSetConfigsOnAccepting_({1, 3}));
         ASSERT_FALSE(nka.checkSetConfigsOnAccepting_({0, 2, 4}));
@@ -261,28 +285,39 @@ protected:
         ASSERT_FALSE(nka.checkSetConfigsOnAccepting_({10, 7, 4, 5}));
     }
 
-    void testCheckNumberOfConfigurations() {
-        nka = NKA(0, {'a', 'b', 'c'}, std::numeric_limits<long long>::digits, {1});
+    void testCheckNumberOfConfigurationsNoThrow() {
+        builderNKA.makeNKA(3, std::numeric_limits<long long>::digits)
+                  .addAcceptingConfigurations({1});
+        NKA& nka = builderNKA.getNKA();
+
         for (int i = 0; i < 10; ++i) {
-            nka.addTransition(i, "a", i + 1);
+            builderNKA.addTransition(i, "a", i + 1);
         }
         ASSERT_NO_THROW(nka.checkNumberOfConfigurations_());
+    }
+    void testCheckNumberOfConfigurationsThrow() {
+        builderNKA.makeNKA(3, std::numeric_limits<long long>::digits)
+                  .addAcceptingConfigurations({1});
+        NKA& nka = builderNKA.getNKA();
 
-        nka = NKA(0, {'a', 'b', 'c'}, std::numeric_limits<long long>::digits, {1});
         for (int i = 0; i < std::numeric_limits<long long>::digits - 1; ++i) {
-            nka.addTransition(i, "a", i + 1);
+            builderNKA.addTransition(i, "a", i + 1);
         }
         ASSERT_THROW(nka.checkNumberOfConfigurations_(), std::range_error);
     }
+
     void testFindAllTransitionsFromSetConfigurations() {
-        nka = NKA(0, {'a', 'b', 'c'}, 7, {1, 3});
-        nka.addTransition(0, "a", 2);
-        nka.addTransition(3, "b", 5);
-        nka.addTransition(3, "c", 1);
-        nka.addTransition( 1, "a", 5);
-        nka.addTransition(2, "cc", 6);
-        nka.addTransition(5, "bc", 3);
-        nka.addTransition(5, "b", 4);
+        builderNKA.makeNKA(3, 7)
+                  .addAcceptingConfigurations({1, 3});
+        NKA& nka = builderNKA.getNKA();
+
+        builderNKA.addTransition(0, "a", 2)
+                  .addTransition(3, "b", 5)
+                  .addTransition(3, "c", 1)
+                  .addTransition(1, "a", 5)
+                  .addTransition(2, "cc", 6)
+                  .addTransition(5, "bc", 3)
+                  .addTransition(5, "b", 4);
 
         auto transitions = nka.findAllTransitionsFromSetConfigurations_({2, 3, 5});
         EXPECT_TRUE(equalSets(transitions["b"], {4, 5}));
@@ -291,18 +326,22 @@ protected:
         EXPECT_TRUE(equalSets(transitions["bc"], {3}));
         ASSERT_EQ(transitions.size(), 4);
     }
+
     void testMakeExplicitWays() {
-        nka = NKA(0, {'a', 'b', 'c'}, 3, {0});
-        nka.addTransition(0, "a", 1);
-        nka.addTransition(0, "a", 2);
-        nka.addTransition(0, "b", 2);
-        nka.addTransition(0, "b", 1);
-        nka.addTransition(1, "a", 1);
-        nka.addTransition(1, "a", 2);
-        nka.addTransition(1, "b", 2);
-        nka.addTransition(1, "c", 0);
-        nka.addTransition(2, "c", 2);
-        nka.addTransition(2, "c", 0);
+        builderNKA.makeNKA(3, 3)
+                  .addAcceptingConfigurations({0});
+        NKA& nka = builderNKA.getNKA();
+
+        builderNKA.addTransition(0, "a", 1)
+                  .addTransition(0, "a", 2)
+                  .addTransition(0, "b", 2)
+                  .addTransition(0, "b", 1)
+                  .addTransition(1, "a", 1)
+                  .addTransition(1, "a", 2)
+                  .addTransition(1, "b", 2)
+                  .addTransition(1, "c", 0)
+                  .addTransition(2, "c", 2)
+                  .addTransition(2, "c", 0);
 
         nka.makeExplicitWays();
 
@@ -325,17 +364,19 @@ protected:
     }
 
     void testMakeDKA() {
-        nka = NKA(0, {'a', 'b', 'c'}, 4, {1});
+        builderNKA.makeNKA(3, 4)
+                  .addAcceptingConfigurations({1});
+        NKA& nka = builderNKA.getNKA();
 
-        nka.addTransition(0, "b", 0);
-        nka.addTransition(0, EPS, 1);
-        nka.addTransition(0, "ca", 2);
-        nka.addTransition(2, EPS, 1);
-        nka.addTransition(1, "a", 1);
-        nka.addTransition(1, "a", 2);
-        nka.addTransition(1, "a", 3);
-        nka.addTransition(1, "c", 3);
-        nka.addTransition(3, "bc", 2);
+        builderNKA.addTransition(0, "b", 0)
+                  .addTransition(0, EPS, 1)
+                  .addTransition(0, "ca", 2)
+                  .addTransition(2, EPS, 1)
+                  .addTransition(1, "a", 1)
+                  .addTransition(1, "a", 2)
+                  .addTransition(1, "a", 3)
+                  .addTransition(1, "c", 3)
+                  .addTransition(3, "bc", 2);
 
         nka.makeDKA();
 
@@ -363,10 +404,13 @@ protected:
     }
 
     void testMakeOneAcceptingConfiguration() {
-        nka = NKA(0, {'a', 'b', 'c'}, 3, {1, 2});
-        nka.addTransition(0, "ab", 1);
-        nka.addTransition(0, EPS, 2);
-        nka.addTransition(1, "c", 1);
+        builderNKA.makeNKA(3, 3)
+                  .addAcceptingConfigurations({1, 2});
+        NKA& nka = builderNKA.getNKA();
+
+        builderNKA.addTransition(0, "ab", 1)
+                  .addTransition(0, EPS, 2)
+                  .addTransition(1, "c", 1);
 
         nka.makeOneAcceptingConfiguration_();
 
@@ -377,13 +421,16 @@ protected:
     }
 
     void testMakeReverse() {
-        nka = NKA(0, {'a', 'b', 'c'}, 3, {1, 2});
-        nka.addTransition(0, "c", 0);
-        nka.addTransition(0, "ab", 1);
-        nka.addTransition(0, "c", 2);
-        nka.addTransition(1, "bc", 1);
-        nka.addTransition(2, "bc", 1);
-        nka.addTransition(2, "bc", 0);
+        builderNKA.makeNKA(3, 3)
+                  .addAcceptingConfigurations({1, 2});
+        NKA& nka = builderNKA.getNKA();
+
+        builderNKA.addTransition(0, "c", 0)
+                  .addTransition(0, "ab", 1)
+                  .addTransition(0, "c", 2)
+                  .addTransition(1, "bc", 1)
+                  .addTransition(2, "bc", 1)
+                  .addTransition(2, "bc", 0);
 
         nka.makeReverse();
         ASSERT_EQ(nka.q0_, 3);
@@ -398,22 +445,30 @@ protected:
     }
 
     NKA makeNKAforTestUnion() {
-        nka = NKA(0, {'a', 'b', 'c'}, {0, 1, 3, 5}, {0, 3});
-        nka.addTransition(0, "a", 1);
-        nka.addTransition(1, "b", 3);
-        nka.addTransition(3, "a", 5);
-        nka.addTransition(5, "b", 0);
+        builderNKA.makeDefaultNKA()
+                  .addConfigurations({0, 1, 3, 5})
+                  .addAcceptingConfigurations({0, 3});
 
-        NKA addedNKA(0, {'a', 'b', 'c'}, 3, {1, 2});
-        addedNKA.addTransition(0, "c", 1);
-        addedNKA.addTransition(1, "c", 2);
-        addedNKA.addTransition(2, "c", 0);
+        builderNKA.addTransition(0, "a", 1)
+                  .addTransition(1, "b", 3)
+                  .addTransition(3, "a", 5)
+                  .addTransition(5, "b", 0);
 
-        return addedNKA;
+        BuilderNKA builderAddedNKA;
+        builderAddedNKA.makeNKA(3, 3)
+                       .addAcceptingConfigurations({1, 2});
+
+        builderAddedNKA.addTransition(0, "c", 1)
+                       .addTransition(1, "c", 2)
+                       .addTransition(2, "c", 0);
+
+        return builderAddedNKA.getNKA();
     }
+
     void testUnionNKA() {
         auto addedNKA = makeNKAforTestUnion();
 
+        NKA& nka = builderNKA.getNKA();
         long long start2 = nka.unionNKA(addedNKA);
 
         ASSERT_EQ(nka.q0_, 0);
@@ -430,8 +485,10 @@ protected:
         EXPECT_TRUE(equalSets(nka.transitions_[4]["c"], {6}));
         EXPECT_TRUE(equalSets(nka.transitions_[6]["c"], {2}));
     }
+
     void testMulNKA() {
         auto mulledNKA = makeNKAforTestUnion();
+        NKA& nka = builderNKA.getNKA();
         nka.mul(mulledNKA);
 
         ASSERT_EQ(nka.q0_, 0);
@@ -451,8 +508,10 @@ protected:
         EXPECT_TRUE(equalSets(nka.transitions_[6]["c"], {7}));
         EXPECT_TRUE(equalSets(nka.transitions_[7]["c"], {4}));
     }
+
     void testAddNKA() {
         auto addedNKA = makeNKAforTestUnion();
+        NKA& nka = builderNKA.getNKA();
         nka.add(addedNKA);
 
         ASSERT_EQ(nka.q0_, 7);
@@ -470,11 +529,15 @@ protected:
         EXPECT_TRUE(equalSets(nka.transitions_[4]["c"], {6}));
         EXPECT_TRUE(equalSets(nka.transitions_[6]["c"], {2}));
     }
+
     void testStarNKA() {
-        nka = NKA(0, {'a', 'b', 'c'}, 3, {1});
-        nka.addTransition(0, "a", 1);
-        nka.addTransition(1, "b", 2);
-        nka.addTransition(2, "c", 0);
+        builderNKA.makeNKA(3, 3)
+                  .addAcceptingConfigurations({1});
+        NKA& nka = builderNKA.getNKA();
+
+        builderNKA.addTransition(0, "a", 1)
+                  .addTransition(1, "b", 2)
+                  .addTransition(2, "c", 0);
 
         nka.star();
 
@@ -490,13 +553,16 @@ protected:
     }
 
     void testLenMaxPrefOf() {
-        nka = NKA(0, {'a', 'b', 'c'}, 3, {2});
-        nka.addTransition(0, "ab", 0);
-        nka.addTransition(0, "aa", 0);
-        nka.addTransition(0, EPS, 1);
-        nka.addTransition(1, "c", 1);
-        nka.addTransition(1, "c", 2);
-        nka.addTransition(2, "a", 2);
+        builderNKA.makeNKA(3, 3)
+                  .addAcceptingConfigurations({2});
+        NKA& nka = builderNKA.getNKA();
+
+        builderNKA.addTransition(0, "ab", 0)
+                  .addTransition(0, "aa", 0)
+                  .addTransition(0, EPS, 1)
+                  .addTransition(1, "c", 1)
+                  .addTransition(1, "c", 2)
+                  .addTransition(2, "a", 2);
 
         NKA nka2 = nka;
         ASSERT_EQ(nka.lenMaxPrefOf("ababaa"), 0);
@@ -506,6 +572,8 @@ protected:
     }
 
     void testMakeNKA() {
+        NKA& nka = builderNKA.getNKA();
+
         ASSERT_THROW(makeNKA("ab+."), std::range_error);
         ASSERT_THROW(makeNKA("ab.+"), std::range_error);
         ASSERT_THROW(makeNKA("abc*."), std::range_error);

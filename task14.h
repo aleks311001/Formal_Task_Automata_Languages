@@ -6,7 +6,7 @@
 #define FORMALPRACTICE1__TASK14_H_
 
 #include "NKA.h"
-
+#include "Builder.h"
 
 NKA makeNKA(const std::string& regular) {
     std::vector<NKA> stack;
@@ -29,8 +29,12 @@ NKA makeNKA(const std::string& regular) {
         } else if (symbol == '*') {
             stack.back().star();
         } else {
-            stack.push_back(NKA(0, {'a', 'b', 'c'}, 2, {1}));
-            stack.back().addTransition(0, symbol, 1);
+            BuilderNKA builder;
+            NKA& pushedNKA = builder.makeNKA(3, 2)
+                                    .addAcceptingConfigurations({1})
+                                    .getNKA();
+            stack.push_back(std::move(pushedNKA));
+            stack.back().addTransition_(0, symbol, 1);
         }
     }
 
